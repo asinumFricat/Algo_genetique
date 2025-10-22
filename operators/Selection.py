@@ -1,105 +1,83 @@
 from abc import ABC, abstractmethod
-import numpy as np
 from core.Population import population
-from core.Individu import individu
+import numpy as np
 
 
 class Selection(ABC):
-    """
-    Classe abstraite de sélection d'individus dans une population
-    """
-
     def __init__(self, population: population):
         self.population = population
 
     @abstractmethod
-    def selection(self) -> tuple[individu, individu]:
+    def selection(self):
         """
-        Retourne deux individus sélectionnés pour le crossover.
+        Retourne une liste de deux individus sélectionnés pour crossover
         """
         pass
 
 
 class selection_tournoi(Selection):
-    """
-    Sélection par tournoi: Choisit aléatoirement un sous-ensemble de la population,
-    puis prend le meilleur (selon performance) comme parent.
-    """
-
-    def __init__(self, population: population, taille_tournoi: int = 3, minimisation: bool = True):
+    def __init__(self, population: population, taille_tournoi=3):
         super().__init__(population)
         self.taille_tournoi = taille_tournoi
-        self.minimisation = minimisation  # True = minimiser, False = maximiser
 
-    def selection(self) -> tuple[individu, individu]:
-        def meilleur_tournoi():
-            participants = np.random.choice(self.population.liste_individus, self.taille_tournoi, replace=False)
-            # Chaque individu doit avoir un attribut performance calculé à l'avance
-            if self.minimisation:
-                meilleur = min(participants, key=lambda ind: ind.performance)
-            else:
-                meilleur = max(participants, key=lambda ind: ind.performance)
-            return meilleur
+    def selection(self):
+        """
+        Sélection par tournoi: choisir 'taille_tournoi' individus aléatoires et retourner les deux meilleurs
+        Ici, on suppose qu'on a un attribut 'performance' sur individu (à intégrer selon f(x))
+        """
+        if len(self.population.liste_individus) < self.taille_tournoi:
+            raise ValueError("Population trop petite pour tournoi")
 
-        parent1 = meilleur_tournoi()
-        parent2 = meilleur_tournoi()
-        while parent2 == parent1:
-            parent2 = meilleur_tournoi()
-
-        return parent1, parent2
+        candidats = np.random.choice(self.population.liste_individus, self.taille_tournoi, replace=False)
+        # Trier par performance (supposons que performance est un float, plus petit meilleur si minimisation)
+        sorted_candidats = sorted(candidats, key=lambda ind: getattr(ind, "performance", float('inf')))
+        # Retourne les 2 meilleurs
+        return sorted_candidats[0], sorted_candidats[1]
 
 
 class selection_roulette(Selection):
-    """
-    Sélection par roulette: probabilité proportionnelle à la performance (ajustée pour minimisation/maximisation)
-    """
-
-    def __init__(self, population: population, minimisation: bool = True):
+    def __init__(self, population: population):
         super().__init__(population)
-        self.minimisation = minimisation
 
-    def selection(self) -> tuple[individu, individu]:
-        performances = np.array([ind.performance for ind in self.population.liste_individus])
-        if self.minimisation:
-            # Convert minimization scores to positive fitness (higher fitness better)
-            max_perf = np.max(performances)
-            fitness = max_perf - performances + 1e-6  # Avoid zero probability
-        else:
-            fitness = performances - np.min(performances) + 1e-6
+    def selection(self):
+        """
+        Sélection par roulette proportionnelle à la performance
+        Ici on suppose que performance est positive et que l'on minimise donc on inverse
+        """
+        individus = self.population.liste_individus
+        perf = np.array([getattr(ind, "performance", 0) for ind in individus])
 
-        probabilities = fitness / np.sum(fitness)
+        # Pour minimisation, convertir performances en "scores" positifs plus élevés meilleurs
+        max_perf = np.max(perf)
+        scores = max_perf - perf + 1e-6  # éviter zéro
 
-        parent1 = np.random.choice(self.population.liste_individus, p=probabilities)
-        parent2 = np.random.choice(self.population.liste_individus, p=probabilities)
-        while parent2 == parent1:
-            parent2 = np.random.choice(self.population.liste_individus, p=probabilities)
+        proba = scores / np.sum(scores)
 
-        return parent1, parent2
+        parents_indices = np.random.choice(len(individus), size=2, replace=False, p=proba)
+        return individus[parents_indices[0]], individus[parents_indices[1]]
 
 
-# === Test ===
 if __name__ == "__main__":
-    import numpy as np
+    # Test simple
     from core.Coordonnees import coordonnees
     from core.Individu import individu
     from core.Population import population
 
-    # Create dummy individuals with performances
-    coords = [coordonnees(np.array([i, i * 2])) for i in range(5)]
-    for i, c in enumerate(coords):
-        c.coordonnees_codees = np.array([0, 1] * 4)
-    inds = [individu(i, c) for i, c in enumerate(coords)]
-    # Assign fake performance (lower is better)
-    for i, ind in enumerate(inds):
-        ind.performance = float(i)  # 0 best, 4 worst
+    import numpy as np
 
-    pop = population(inds)
+    c1 = coordonnees(np.array([1, 2]))
+    c2 = coordonnees(np.array([3, 4]))
+    ind1 = individu(1, c1)
+    ind2 = individu(2, c2)
 
-    sel_tournoi = selection_tournoi(pop, taille_tournoi=3, minimisation=True)
-    sel_roul = selection_roulette(pop, minimisation=True)
+    ind1.performance = 10
+    ind2.performance = 5
 
-    p1, p2 = sel_tournoi.selection()
-    print(f"Tournoi sélection: {p1.id}, {p2.id}")
+    pop = population([ind1, ind2])
+    selection = selection_tournoi(pop, taille_tournoi=2)
+    p1, p2 = selection.selection()
+    print(f"Tournoi selection: {p1.id}, {p2.id}")
 
-    p1, p2 = sel_roul.selection()
-    print(f"Roulette sélection: {p1.id}, {p2.id}")
+    selection_r = selection_roulette(pop)
+    p1, p2 = selection_r.selection()
+    print(f"Roulette selection: {p1.id}, {p2.id}")
