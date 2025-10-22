@@ -1,4 +1,4 @@
-from Individu import individu
+from Individu import Individual
 
 import random
 from typing import List
