@@ -1,10 +1,6 @@
 from abc import ABC, abstractmethod
 from core.Coordonnees import coordonnees
-import math
 import numpy as np
-
-
-# === Abstract Base Class ===
 
 class Codage(ABC):
     def __init__(self):
@@ -12,116 +8,70 @@ class Codage(ABC):
 
     @abstractmethod
     def code(self, coord: coordonnees):
-        """
-        Fonction qui prends les coordonnées réelles et les encode
-        pour pouvoir faire les autres opérations de l'algo génétique
-        """
-
-
-# === Concrete Codage: Mantisse-Exposant (Task 1) ===
-
-class CodageMantisseExposant(Codage):
-    """
-    Codage en binaire type Mantisse-Exposant pour chaque coordonnée.
-    """
-
-    def __init__(self, bits_per_var=16, exponent_bits=5):
-        super().__init__()
-        self.bits_per_var = bits_per_var
-        self.exponent_bits = exponent_bits
-        self.sign_bits = 1
-        self.mantissa_bits = bits_per_var - exponent_bits - self.sign_bits
-        self.bias = (2 ** (exponent_bits - 1)) - 1
-
-    def code(self, coord: coordonnees):
-        """
-        Encode les coordonnées réelles en binaire avec codage Mantisse/Exposant
-        """
-        encoded = []
-        for val in coord.coordonnees:
-            encoded.extend(self.encode_value(val))
-        coord.coordonnees_codees = np.array(encoded)
-
-    def encode_value(self, val):
-        if val == 0.0:
-            return [0] * self.bits_per_var
-
-        sign = 0 if val >= 0 else 1
-        val = abs(val)
-
-        exponent = int(math.floor(math.log2(val)))
-        mantissa = val / (2 ** exponent)
-
-        biased_exp = exponent + self.bias
-        biased_exp = max(0, min(biased_exp, 2 ** self.exponent_bits - 1))
-        exp_bits = [int(x) for x in format(biased_exp, f'0{self.exponent_bits}b')]
-
-        frac = mantissa - 1.0
-        mant_bits_val = int(frac * (2 ** self.mantissa_bits))
-        mant_bits = [int(x) for x in format(mant_bits_val, f'0{self.mantissa_bits}b')]
-
-        return [sign] + exp_bits + mant_bits
-
-    def decode(self, coord: coordonnees):
-        if coord.coordonnees_codees is None:
-            raise ValueError("Les coordonnées codées sont vides.")
-
-        bits = coord.coordonnees_codees.tolist()
-        decoded = []
-
-        for i in range(0, len(bits), self.bits_per_var):
-            sub_bits = bits[i:i + self.bits_per_var]
-            decoded.append(self.decode_value(sub_bits))
-
-        coord.coordonnees = np.array(decoded)
-
-    def decode_value(self, bits):
-        if len(bits) != self.bits_per_var:
-            raise ValueError("Longueur de bits incorrecte")
-
-        sign = -1 if bits[0] == 1 else 1
-        exp = int("".join(str(b) for b in bits[1:1 + self.exponent_bits]), 2)
-        exponent = exp - self.bias
-
-        mantissa_bits = bits[1 + self.exponent_bits:]
-        mantissa_val = int("".join(str(b) for b in mantissa_bits), 2)
-        mantissa = 1 + mantissa_val / (2 ** self.mantissa_bits)
-
-        return sign * mantissa * (2 ** exponent)
-
-
-# === Other Codage Stubs (existing) ===
-
-class codage_binaire:
-    def codage(self, variables):
-        # codage binaire pour chaque élément
-        # A IMPLEMENTER
         pass
 
 
-class codage_reel:
-    def codage(self, variables):
-        """ "
-        Transforme chaque élément de la liste en float
+class codage_binaire(Codage):
+    def __init__(self, taille_mantisse=10, taille_exposant=6):
+        # Total size = mantisse + exposant = 16 bits (as requested)
+        self.taille_mantisse = taille_mantisse
+        self.taille_exposant = taille_exposant
+        self.taille_total = taille_mantisse + taille_exposant
+
+    def float_to_bin_mant_exp(self, val, low, high):
         """
+        Encode a float val in [low, high] into a binary mantissa + exponent.
+        Here simplified:
+        - Normalize val to [low, high] range to a positive number
+        - Convert integer part to exponent bits
+        - Fractional part to mantissa bits
+        This is a simplified example of mantisse-exposant binary encoding.
+        """
+
+        # Normalize value to positive
+        normalized = (val - low) / (high - low)
+        # Convert to float scientific notation: val = mantissa * 2^exponent
+        if normalized == 0:
+            mantissa = 0
+            exponent = 0
+        else:
+            exponent = int(np.floor(np.log2(normalized)))
+            mantissa_float = normalized / (2 ** exponent) - 1
+            mantissa = int(mantissa_float * (2 ** self.taille_mantisse))
+            exponent += 2 ** (self.taille_exposant - 1)  # bias for exponent
+
+        # Clamp exponent and mantissa to bit size
+        exponent = max(0, min(exponent, 2**self.taille_exposant - 1))
+        mantissa = max(0, min(mantissa, 2**self.taille_mantisse - 1))
+
+        # Convert to binary strings
+        exp_bin = format(exponent, f'0{self.taille_exposant}b')
+        mant_bin = format(mantissa, f'0{self.taille_mantisse}b')
+
+        return exp_bin + mant_bin
+
+    def codage(self, variables, bornes=None):
+        """
+        Encode each variable to a fixed-length binary string mantisse+exposant.
+        Returns concatenated string of all variables.
+        """
+        if bornes is None:
+            bornes = [(-10, 10)] * len(variables)
+        encoded_vars = [
+            self.float_to_bin_mant_exp(val, low, high)
+            for val, (low, high) in zip(variables, bornes)
+        ]
+        # Single concatenated string for the individual
+        return ''.join(encoded_vars)
+
+
+class codage_reel(Codage):
+    def codage(self, variables):
         variables = [float(variables[i]) for i in range(len(variables))]
         return variables
 
 
-# === Test Block ===
-
 if __name__ == "__main__":
     x = [1, 2.5, 3, 4.7]
-    codagereel = codage_reel()
     codagebinaire = codage_binaire()
-    print("Codage réel :", codagereel.codage(x))
-    print("Codage binaire :", codagebinaire.codage(x))
-
-    # Test MantisseExposant codage
-    from core.Coordonnees import coordonnees
-    c = coordonnees(np.array([3.14, -2.7, 0.5]))
-    coder = CodageMantisseExposant(bits_per_var=16, exponent_bits=5)
-    coder.code(c)
-    print("Encoded (MantisseExposant):", c.coordonnees_codees)
-    coder.decode(c)
-    print("Decoded (MantisseExposant):", c.coordonnees)
+    print(codagebinaire.codage(x, [(-10, 10)]*len(x)))
