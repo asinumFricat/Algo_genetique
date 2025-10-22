@@ -1,44 +1,18 @@
-import numpy as np
 from core.Individu import individu
-
+import random
 
 class Mutation:
-    """
-    Classe qui permet d'effectuer une mutation sur un individu selon un certain taux de mutation
-    """
-
     def __init__(self, taux_mutation: float):
         self.taux_mutation = taux_mutation
 
-    def mutation(self, indiv: individu):
-        """
-        Effectue une mutation sur les coordonnées codées de l'individu.
-        Chaque bit a une probabilité `taux_mutation` d'être inversé.
-        Modifie l'individu en place.
-        """
-        encoded = indiv.coordonnees.coordonnees_codees
-        if encoded is None:
-            raise ValueError("L'individu doit avoir des coordonnées codées pour mutation")
+    def mutation(self, individu: individu):
+        adn = individu.coordonnees.coordonnees_codees
+        adn_muté = []
 
-        for i in range(len(encoded)):
-            if np.random.rand() < self.taux_mutation:
-                encoded[i] = 1 - encoded[i]  # Flip bit
+        for bit in adn:
+            if random.random() < self.taux_mutation:
+                adn_muté.append('1' if bit == '0' else '0')
+            else:
+                adn_muté.append(bit)
 
-        indiv.coordonnees.coordonnees_codees = encoded
-
-
-# === Test ===
-if __name__ == "__main__":
-    from core.Coordonnees import coordonnees
-    from core.Individu import individu
-    np.random.seed(42)
-
-    coord = coordonnees(np.array([3.3, -1.2]))
-    coord.coordonnees_codees = np.array([1, 0, 1, 1, 0, 0, 1, 0])
-
-    ind = individu(1, coord)
-    mutation = Mutation(taux_mutation=0.3)
-
-    print("Avant mutation :", ind.coordonnees.coordonnees_codees)
-    mutation.mutation(ind)
-    print("Après mutation:", ind.coordonnees.coordonnees_codees)
+        individu.coordonnees.coordonnees_codees = adn_muté
