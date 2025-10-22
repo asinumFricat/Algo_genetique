@@ -14,8 +14,6 @@ class Individual:
         self.fitness = None
 
         # Mantisse-Exponent coding params
-        # bits per variable: 16
-        # 1 bit sign, 5 bits exponent, 10 bits mantissa
         self.sign_bits = 1
         self.exponent_bits = 5
         self.mantissa_bits = self.bits_per_var - self.sign_bits - self.exponent_bits
@@ -26,7 +24,6 @@ class Individual:
         self.genotype = ""
         for i, val in enumerate(phenotype):
             low, high = self.bounds[i]
-            # Clamp value inside bounds
             val_clamped = max(min(val, high), low)
             bits = self.encode_value(val_clamped)
             self.genotype += bits
@@ -35,42 +32,33 @@ class Individual:
     def encode_value(self, val):
         """Encode single float value to Mantisse-Exponent binary string (length bits_per_var)."""
 
-        # Handle zero explicitly (encode as all zero bits)
         if val == 0:
             return "0" * self.bits_per_var
 
-        # Sign bit
         sign_bit = "0"
         if val < 0:
             sign_bit = "1"
             val = -val
 
-        # Get exponent and mantissa normalized in [1, 2)
         exponent = int(math.floor(math.log2(val)))
         mantissa = val / (2 ** exponent)
 
-        # Bias exponent
         biased_exp = exponent + self.exponent_bias
 
-        # Clamp biased exponent to allowed range
         max_exp = 2 ** self.exponent_bits - 1
         if biased_exp < 0:
             biased_exp = 0
-            mantissa = 0  # Underflow to zero
+            mantissa = 0
         elif biased_exp > max_exp:
             biased_exp = max_exp
-            mantissa = 1.999999  # Saturate mantissa for overflow
+            mantissa = 1.999999
 
-        # Encode exponent bits
         exp_bits = format(biased_exp, f"0{self.exponent_bits}b")
 
-        # Encode mantissa bits (fractional part after leading 1)
-        # mantissa ∈ [1, 2), fractional part = mantissa - 1 ∈ [0, 1)
         frac = mantissa - 1.0
         mant_bits_val = int(frac * (2 ** self.mantissa_bits))
         mant_bits = format(mant_bits_val, f"0{self.mantissa_bits}b")
 
-        # Combine bits: sign + exponent + mantissa
         return sign_bit + exp_bits + mant_bits
 
     def decode(self):
@@ -82,16 +70,13 @@ class Individual:
             bits = self.genotype[start:end]
             val = self.decode_value(bits)
             low, high = self.bounds[i]
-            # Clamp decoded value inside bounds
             val_clamped = max(min(val, high), low)
             self.phenotype.append(val_clamped)
 
     def decode_value(self, bits):
-        """Decode a single Mantisse-Exponent binary string to float."""
         if len(bits) != self.bits_per_var:
             raise ValueError("Incorrect bits length")
 
-        # Check for zero (all bits zero)
         if bits == "0" * self.bits_per_var:
             return 0.0
 
@@ -103,27 +88,23 @@ class Individual:
         biased_exp = int(exp_bits, 2)
         mantissa_val = int(mant_bits, 2)
 
-        # Recover exponent
         exponent = biased_exp - self.exponent_bias
 
-        # Recover mantissa fractional part
         frac = mantissa_val / (2 ** self.mantissa_bits)
-        mantissa = 1 + frac  # normalized mantissa in [1, 2)
+        mantissa = 1 + frac
 
         val = sign * mantissa * (2 ** exponent)
         return val
 
     def mutate(self, mutation_rate):
-        """Bit-flip mutation with given mutation rate per bit."""
         bits = list(self.genotype)
         for i in range(len(bits)):
             if random.random() < mutation_rate:
                 bits[i] = "1" if bits[i] == "0" else "0"
         self.genotype = "".join(bits)
-        self.decode()  # update phenotype
+        self.decode()
 
     def crossover(self, other, num_points=2):
-        """Multi-point crossover producing two children."""
         if len(self.genotype) != len(other.genotype):
             raise ValueError("Genotype lengths differ")
 
@@ -149,3 +130,4 @@ class Individual:
         child1.decode()
         child2.decode()
         return [child1, child2]
+
